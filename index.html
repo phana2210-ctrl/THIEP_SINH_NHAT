@@ -665,18 +665,10 @@
 <!-- Nút Bật / Tắt Nhạc -->
 <button class="music-btn" id="musicToggle" onclick="toggleMusic()" title="Bật/Tắt Nhạc">🎵</button>
 
-<!-- File nhạc Happy Birthday Hộp Nhạc Du Dương (Link CDN trực tiếp không bị chặn) -->
+<!-- File nhạc Happy Birthday Hộp Nhạc Du Dương (Link CDN trực tiếp) -->
 <audio id="birthdayAudio" loop preload="auto">
   <source src="https://raw.githubusercontent.com/tienthanh214/assets/main/happy_birthday_musicbox.mp3" type="audio/mpeg">
 </audio>
-
-<!-- Form ẩn dùng để đẩy dữ liệu chắc chắn vào Google Sheets (Chống chặn CORS 100%) -->
-<iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
-<form id="googleSheetForm" method="POST" target="hidden_iframe" style="display:none;">
-  <input type="hidden" name="name" id="form_name">
-  <input type="hidden" name="rsvp" id="form_rsvp">
-  <input type="hidden" name="wish" id="form_wish">
-</form>
 
 <div class="container">
 
@@ -907,11 +899,19 @@
   // ==================== 1. CẤU HÌNH LIÊN KẾT GOOGLE SHEETS ====================
   const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcjQFyDS5sKu_oZ8nr9JdbDTRz3M6eIBU7buHHZnhRz5xbRm7CpHMaxie9aSbZb8Q_/exec";
 
-  // ==================== 2. TỰ ĐỘNG LẤY TÊN KHÁCH MỜI ====================
+  // ==================== 2. TỰ ĐỘNG LẤY TÊN KHÁCH MỜI TỪ LINK ====================
   const params = new URLSearchParams(window.location.search);
   const guestName = params.get('to') || 'Tên Khách Mời';
   document.getElementById('guestNameDisplay').innerText = guestName;
   document.getElementById('guestDetailName').innerText = guestName;
+
+  // Tự động điền tên từ link vào sẵn các ô nhập tên (tránh trường hợp khách quên nhập)
+  if (guestName && guestName !== 'Tên Khách Mời') {
+    const inputRsvp = document.getElementById('guestInputName');
+    const inputWish = document.getElementById('wishSender');
+    if (inputRsvp) inputRsvp.value = guestName;
+    if (inputWish) inputWish.value = guestName;
+  }
 
   // ==================== 3. QUẢN LÝ NHẠC NỀN ====================
   const audio = document.getElementById('birthdayAudio');
@@ -1003,24 +1003,31 @@
     alertBox.style.color = '#e65100';
     alertBox.innerText = 'Đang gửi phản hồi...';
 
-    // Đẩy dữ liệu qua Hidden Form (Chống chặn CORS 100%)
-    const form = document.getElementById('googleSheetForm');
-    form.action = GOOGLE_SCRIPT_URL;
-    document.getElementById('form_name').value = name;
-    document.getElementById('form_rsvp').value = currentRSVPStatus;
-    document.getElementById('form_wish').value = "";
-    form.submit();
+    const p = new URLSearchParams();
+    p.append('name', name);
+    p.append('rsvp', currentRSVPStatus);
+    p.append('wish', '');
 
-    setTimeout(() => {
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: p.toString()
+    }).then(() => {
       alertBox.style.color = '#2e7d32';
       alertBox.innerText = `Đã ghi nhận thành công! Cảm ơn ${name} đã phản hồi ❤️`;
       confetti({ particleCount: 45, spread: 60, colors: ['#ff6584', '#ff8fa3'], origin: { y: 0.7 } });
-    }, 500);
+    }).catch(err => {
+      alertBox.style.color = '#d32f2f';
+      alertBox.innerText = 'Có lỗi xảy ra, bạn thử gửi lại nhé!';
+    });
   }
 
   // ==================== 9. GỬI LỜI CHÚC VÀO CỘT D (WISH) ====================
   function sendWish() {
-    const sender = document.getElementById('wishSender').value.trim() || 'Bạn ẩn danh';
+    const sender = document.getElementById('wishSender').value.trim() || (guestName !== 'Tên Khách Mời' ? guestName : 'Bạn ẩn danh');
     const msg = document.getElementById('wishMessage').value.trim();
 
     if (!msg) {
@@ -1035,13 +1042,19 @@
     bubble.innerHTML = `<strong>${sender}:</strong> ${msg}`;
     wrapper.prepend(bubble);
 
-    // Đẩy dữ liệu qua Hidden Form
-    const form = document.getElementById('googleSheetForm');
-    form.action = GOOGLE_SCRIPT_URL;
-    document.getElementById('form_name').value = sender;
-    document.getElementById('form_rsvp').value = "";
-    document.getElementById('form_wish').value = msg;
-    form.submit();
+    const p = new URLSearchParams();
+    p.append('name', sender);
+    p.append('rsvp', '');
+    p.append('wish', msg);
+
+    fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: p.toString()
+    });
 
     document.getElementById('wishMessage').value = '';
     confetti({ particleCount: 35, spread: 45, colors: ['#ff6584', '#ff8fa3'], origin: { y: 0.8 } });
